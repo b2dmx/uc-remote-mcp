@@ -11,9 +11,35 @@ backups, all in plain language.
 - [`uv`](https://docs.astral.sh/uv/getting-started/installation/) (manages Python and dependencies — Python 3.11+ is fetched automatically)
 - An MCP client — the examples below use [Claude Desktop](https://claude.com/download)
 
-## Quick start
+## Quick start (no clone needed)
 
-**1. Clone and install**
+**1. Add the server to Claude Desktop**
+
+Add to your Claude Desktop config file
+(Windows: `%APPDATA%\Claude\claude_desktop_config.json`,
+macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "uc-remote": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/b2dmx/uc-remote-mcp@v0.1.0",
+        "uc-remote-mcp"
+      ]
+    }
+  }
+}
+```
+
+That's the whole install — `uvx` fetches, builds, and caches the server on
+first launch. Restart Claude Desktop after saving. (Drop the `@v0.1.0` to
+track the latest code instead of a pinned release.)
+
+<details>
+<summary><b>Alternative: clone for development</b></summary>
 
 ```sh
 git clone https://github.com/b2dmx/uc-remote-mcp.git
@@ -21,11 +47,7 @@ cd uc-remote-mcp
 uv sync
 ```
 
-**2. Wire it into Claude Desktop**
-
-Add to your Claude Desktop config file
-(Windows: `%APPDATA%\Claude\claude_desktop_config.json`,
-macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`):
+Then point the config at your working copy instead:
 
 ```json
 {
@@ -43,10 +65,12 @@ macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`):
 }
 ```
 
-Use the absolute path of the folder you cloned (Windows paths need doubled
-backslashes: `"C:\\path\\to\\uc-remote-mcp"`). Restart Claude Desktop after saving.
+(Windows paths need doubled backslashes: `"C:\\path\\to\\uc-remote-mcp"`.)
+Run the tests with `uv run pytest`.
 
-**3. Pair with your remote (one time)**
+</details>
+
+**2. Pair with your remote (one time)**
 
 You need the remote's **Web Configurator PIN**: on the remote, go to
 **Settings → Web Configurator** and toggle it on — the PIN is shown on the
