@@ -1,0 +1,91 @@
+{
+  "entity_id": "uc.main.11111111-2222-4333-8444-555555555555",
+  "entity_type": "activity",
+  "integration_id": "uc.main",
+  "name": {"en_US": "Universal Remote"},
+  "icon": "uc:mobile",
+  "features": ["start"],
+  "description": {"en_US": "Full Theater Configuration\n"},
+  "options": {
+    "button_mapping": [
+      {
+        "button": "VOLUME_UP",
+        "short_press": {
+          "cmd_id": "media_player.volume_up",
+          "entity_id": "sonyavr_driver.main.media_player.1234567",
+          "params": {}
+        }
+      },
+      {
+        "button": "HOME",
+        "short_press": {
+          "cmd_id": "media_player.home",
+          "entity_id": "uc_appletv_driver.main.AA:BB:CC:00:11:22",
+          "params": {}
+        },
+        "long_press": {
+          "cmd_id": "HOME",
+          "entity_id": "lgwebos_driver.main.remote.aa:bb:cc:33:44:55",
+          "params": {}
+        }
+      },
+      {"button": "POWER"}
+    ],
+    "included_entities": [
+      {
+        "entity_id": "sonyavr_driver.main.media_player.1234567",
+        "entity_type": "media_player",
+        "name": {"en": "STR-AN1000"},
+        "integration": {"name": {"en": "Sony AVR Network Receivers"}},
+        "entity_commands": [
+          "media_player.on",
+          "media_player.off",
+          "media_player.volume_up",
+          "media_player.volume_down",
+          "media_player.mute_toggle",
+          "media_player.select_source"
+        ],
+        "simple_commands": ["ZONE_HDMI_OUTPUT_A", "ZONE_HDMI_OUTPUT_OFF"]
+      },
+      {
+        "entity_id": "uc_appletv_driver.main.AA:BB:CC:00:11:22",
+        "entity_type": "media_player",
+        "name": {"en": "Apple TV 4K"},
+        "integration": {"name": {"en": "Apple TV"}},
+        "entity_commands": ["media_player.home", "media_player.back", "media_player.play_pause"],
+        "simple_commands": ["TOP_MENU", "APP_SWITCHER"]
+      }
+    ],
+    "ready_check": true,
+    "user_interface": {
+      "pages": [
+        {
+          "page_id": "main",
+          "name": "Inputs",
+          "grid": {"width": 4, "height": 6},
+          "items": [
+            {
+              "type": "text",
+              "text": "HDMI 1",
+              "command": {
+                "cmd_id": "media_player.select_source",
+                "entity_id": "sonyavr_driver.main.media_player.1234567",
+                "params": {"source": "HDMI_1"}
+              },
+              "location": {"x": 0, "y": 1},
+              "size": {"width": 1, "height": 1}
+            }
+          ]
+        },
+        {
+          "page_id": "page-two",
+          "name": "Apple TV",
+          "grid": {"width": 4, "height": 6},
+          "items": []
+        }
+      ]
+    }
+  },
+  "attributes": {"state": "ON"},
+  "enabled": true
+}
