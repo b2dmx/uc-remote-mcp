@@ -1,22 +1,31 @@
 # UC Remote MCP
 
-MCP server for Unfolded Circle Remote 3 / Remote Two.
-Exposes the remote's configuration as conversational tools for Claude.
+MCP server for the Unfolded Circle Remote 3 / Remote Two.
+Exposes the remote's configuration as conversational tools for Claude — ask
+questions about your setup, remap buttons, redesign UI pages, and restore from
+backups, all in plain language.
 
-## Install
+## Requirements
 
-```powershell
+- An Unfolded Circle **Remote 3** or **Remote Two** on the same LAN as your computer
+- [`uv`](https://docs.astral.sh/uv/getting-started/installation/) (manages Python and dependencies — Python 3.11+ is fetched automatically)
+- An MCP client — the examples below use [Claude Desktop](https://claude.com/download)
+
+## Quick start
+
+**1. Clone and install**
+
+```sh
+git clone https://github.com/b2dmx/uc-remote-mcp.git
+cd uc-remote-mcp
 uv sync
 ```
 
-## First run
+**2. Wire it into Claude Desktop**
 
-1. Find your remote's IP in the UC app (Settings -> About), or call `discover_remotes` from Claude.
-2. Call `setup_remote(host="<ip>", pin="<pin>")` — creates an API key and saves it to `%APPDATA%\uc-remote-mcp\config.json`.
-
-## Claude Desktop config
-
-Add to `%APPDATA%\Claude\claude_desktop_config.json`:
+Add to your Claude Desktop config file
+(Windows: `%APPDATA%\Claude\claude_desktop_config.json`,
+macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`):
 
 ```json
 {
@@ -25,7 +34,7 @@ Add to `%APPDATA%\Claude\claude_desktop_config.json`:
       "command": "uv",
       "args": [
         "--directory",
-        "C:\\path\\to\\uc-remote-mcp",
+        "/absolute/path/to/uc-remote-mcp",
         "run",
         "uc-remote-mcp"
       ]
@@ -34,7 +43,51 @@ Add to `%APPDATA%\Claude\claude_desktop_config.json`:
 }
 ```
 
-Restart Claude Desktop after saving.
+Use the absolute path of the folder you cloned (Windows paths need doubled
+backslashes: `"C:\\path\\to\\uc-remote-mcp"`). Restart Claude Desktop after saving.
+
+**3. Pair with your remote (one time)**
+
+You need the remote's **Web Configurator PIN**: on the remote, go to
+**Settings → Web Configurator** and toggle it on — the PIN is shown on the
+remote's screen.
+
+Then just tell Claude:
+
+> Discover my Unfolded Circle remote, then set it up with PIN 1234.
+
+`discover_remotes` finds the remote via mDNS; `setup_remote` exchanges the PIN
+for a long-lived API key stored in `%APPDATA%\uc-remote-mcp\config.json`
+(Windows) or `~/.config/uc-remote-mcp/config.json` (macOS/Linux, chmod 600).
+The PIN itself is never stored. After that, every tool works without further auth.
+
+## Things to ask once it's running
+
+- "What's the battery level on my remote?"
+- "List my activities and what's on their UI pages."
+- "What does the volume button do in each activity?"
+- "Map the PLAY button in the TV activity to the Apple TV's play/pause."
+- "Back up my remote's config." / "What changed since that backup?"
+
+## Troubleshooting
+
+- **`ConnectTimeout` / tools suddenly fail** — the remote parks its HTTP server
+  in standby. Wake it (lift it or press a button) or keep it docked. This is by
+  far the most common failure mode.
+- **Remote not found / timeouts after it worked before** — DHCP may have moved
+  its IP. Ask Claude to run `discover_remotes` again and re-run `setup_remote`
+  (or give the remote a DHCP reservation in your router).
+- **`discover_remotes` returns nothing** — mDNS only works on the same
+  subnet/VLAN, and some firewalls block it. Find the IP on the remote
+  (Settings → About → Network) and call `setup_remote` with it directly.
+- **Wrong PIN** — the PIN changes each time the Web Configurator is toggled;
+  read it off the remote's screen, not from memory.
+
+## Compatibility
+
+Developed and battle-tested against a **Remote 3** (firmware/core 0.69.x, API
+0.16). The Remote Two exposes the same Core API and should work identically,
+but hasn't been tested by the author.
 
 ## Tools (Phase 1 — read-only + backup)
 
