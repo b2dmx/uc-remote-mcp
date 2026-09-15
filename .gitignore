@@ -14,3 +14,6 @@ snapshots/
 backups/
 .env
 .pytest_cache/
+repair_remote.py
+repair_task.cmd
+repair.log
