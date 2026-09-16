@@ -1,5 +1,7 @@
 # UC Remote MCP
 
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/goobis2dmx)
+
 Control an **Unfolded Circle Remote 3 / Remote Two** by talking to Claude.
 Ask what a button does, remap it, redesign a page, back up your config — in
 plain language.
