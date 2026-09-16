@@ -80,7 +80,3 @@ Not affiliated with or endorsed by Unfolded Circle.
 ## License
 
 [MIT](LICENSE)
-
----
-
-If this saved you some time: [buy me a coffee](https://ko-fi.com/goobis2dmx) ☕
