@@ -8,7 +8,18 @@ plain language.
 
 ## Install
 
-Add this to your MCP client config
+**1. Install `uv`**, which is what actually runs this. One line, then reopen the
+terminal:
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+```sh
+curl -LsSf https://astral.sh/uv/install.sh | sh    # macOS / Linux
+```
+
+**2. Add this to your MCP client config**
 (Claude Desktop: `%APPDATA%\Claude\claude_desktop_config.json` on Windows,
 `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
@@ -27,8 +38,11 @@ Add this to your MCP client config
 }
 ```
 
-Restart the client. [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
-fetches and builds everything on first launch.
+If the file does not exist, create it. If it already has an `"mcpServers"`
+section, add the `"uc-remote"` block inside it rather than adding a second one.
+
+**3. Restart the client.** Everything else is fetched and built on first launch,
+which takes a minute — there is nothing to download by hand.
 
 ## Pair
 
