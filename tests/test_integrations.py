@@ -29,6 +29,9 @@ class TestStringify:
         # or sending None is rejected.
         assert _stringify({"broadcast": ""}) == {"broadcast": ""}
 
+    def test_none_becomes_empty_not_the_word_none(self):
+        assert _stringify({"broadcast": None}) == {"broadcast": ""}
+
     def test_everything_is_a_string_afterwards(self):
         out = _stringify({"a": 1, "b": True, "c": "x", "d": 2.5})
         assert all(isinstance(v, str) for v in out.values())
@@ -100,6 +103,21 @@ class TestScreen:
         out = _screen({"state": "ERROR", "error": "OTHER"})
         assert out["state"] == "ERROR"
         assert out["error"] == "OTHER"
+
+    def test_confirmation_page_surfaces_its_message(self):
+        state = {
+            "state": "WAIT_USER_ACTION",
+            "require_user_action": {
+                "confirmation": {
+                    "title": {"en": "Pair"},
+                    "message1": {"en": "Accept the prompt on the TV."},
+                    "message2": {"en": "Then continue."},
+                }
+            },
+        }
+        out = _screen(state)
+        assert out["fields"] == []
+        assert out["message"] == "Accept the prompt on the TV. Then continue."
 
     def test_survives_a_missing_action_block(self):
         assert _screen({})["fields"] == []

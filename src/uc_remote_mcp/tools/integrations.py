@@ -20,7 +20,8 @@ Each of those is a dead end someone would otherwise have to discover.
 
 from typing import Any, Optional
 
-from ..client.rest import UCClient
+import httpx
+
 from ..safety.dry_run import apply_mutation
 from ._common import get_client, localized
 
@@ -42,7 +43,11 @@ async def list_integrations(host: Optional[str] = None) -> dict:
                 "name": localized(d.get("name")),
                 "version": d.get("version"),
                 "enabled": d.get("enabled"),
-                "external": d.get("driver_url") is not None,
+                # LOCAL = shipped in the firmware, CUSTOM = user-installed on
+                # the remote, EXTERNAL = running elsewhere on the network.
+                "driver_type": d.get("driver_type"),
+                "driver_state": d.get("driver_state"),
+                "developer": d.get("developer_name"),
             }
             for d in drivers
         ],
@@ -264,7 +269,11 @@ def _stringify(values: dict[str, Any]) -> dict[str, str]:
     """Setup flows reject anything but strings, including numbers and booleans."""
     out: dict[str, str] = {}
     for k, v in values.items():
-        if isinstance(v, bool):
+        if v is None:
+            # Flows want every field present; an empty string is how "nothing"
+            # is expressed. str(None) would send the word "None".
+            out[k] = ""
+        elif isinstance(v, bool):
             out[k] = "true" if v else "false"
         else:
             out[k] = str(v)
@@ -293,12 +302,19 @@ def _screen(state: dict) -> dict:
                 "default": spec.get("value"),
             }
         )
-    return {
+    out = {
         "state": state.get("state"),
         "error": state.get("error"),
         "title": localized(form.get("title")),
         "fields": fields,
     }
+    # A confirmation page has no fields; what it wants read is in its messages.
+    message = " ".join(
+        m for m in (localized(form.get("message1")), localized(form.get("message2"))) if m
+    )
+    if message:
+        out["message"] = message
+    return out
 
 
 async def start_integration_setup(
@@ -340,8 +356,10 @@ async def answer_integration_setup(
     )
     try:
         return _screen(await client.get(f"/api/intg/setup/{driver_id}"))
-    except Exception:
-        # The flow closes itself when it finishes, so a missing flow here is
+    except httpx.HTTPStatusError as err:
+        if err.response.status_code != 404:
+            raise
+        # The flow closes itself when it finishes, so a vanished flow here is
         # success rather than an error.
         return {"state": "OK", "note": "Setup finished; the flow has closed."}
 

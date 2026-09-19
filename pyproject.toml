@@ -1,6 +1,6 @@
 [project]
 name = "uc-remote-mcp"
-version = "1.2.0"
+version = "1.0.0"
 description = "MCP server for Unfolded Circle Remote 3 / Remote Two"
 readme = "README.md"
 license = {text = "MIT"}

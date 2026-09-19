@@ -31,7 +31,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh    # macOS / Linux
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/b2dmx/uc-remote-mcp@v1.2.0",
+        "git+https://github.com/b2dmx/uc-remote-mcp@v1.0.0",
         "uc-remote-mcp"
       ]
     }
