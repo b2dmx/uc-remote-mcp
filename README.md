@@ -31,7 +31,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh    # macOS / Linux
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/b2dmx/uc-remote-mcp@v1.0.0",
+        "git+https://github.com/b2dmx/uc-remote-mcp@v1.1.0",
         "uc-remote-mcp"
       ]
     }
@@ -48,11 +48,11 @@ which takes a minute — there is nothing to download by hand.
 ### Updating
 
 Change the version in that config to the release you want, then restart the
-client — for example `@v1.1.0`. Releases are listed on the
+client. Releases are listed on the
 [releases page](https://github.com/b2dmx/uc-remote-mcp/releases); click
 **Watch → Custom → Releases** on the repository to be told about new ones.
 
-To always run the newest code instead, drop `@v1.0.0` entirely. That tracks the
+To always run the newest code instead, drop the `@v...` part entirely. That tracks the
 default branch, which is less predictable — fine for trying things, less so for
 something that edits your remote's configuration.
 
@@ -71,12 +71,17 @@ The PIN is traded for a long-lived API key. That's the whole setup.
 - "What does the volume button do in each activity?"
 - "Map PLAY in the TV activity to the Apple TV's play/pause."
 - "Back up my config." / "What changed since that backup?"
+- "My Apple TV stopped responding — restart that integration."
 
 ## What it can do
 
 Read everything — devices, activities, button mappings, page layouts — and
 change any of it: bind buttons, rebuild pages, edit activity sequences, back up
 and restore.
+
+It also manages **integrations**: install a driver, walk through its setup flow
+by answering questions in chat, choose which entities get exposed, and restart
+one when a device stops responding.
 
 **[Full tool list →](docs/tools.md)**
 

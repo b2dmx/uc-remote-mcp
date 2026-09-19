@@ -32,6 +32,21 @@ from .tools.ui_mutations import (
     set_default_ui_page as _set_default_ui_page,
     update_activity_sequence as _update_activity_sequence,
 )
+from .tools.integrations import (
+    list_integrations as _list_integrations,
+    get_integration as _get_integration,
+    list_integration_entities as _list_integration_entities,
+    configure_integration_entities as _configure_integration_entities,
+    set_integration_enabled as _set_integration_enabled,
+    restart_integration as _restart_integration,
+    install_integration as _install_integration,
+    delete_integration as _delete_integration,
+    start_integration_setup as _start_integration_setup,
+    get_integration_setup as _get_integration_setup,
+    answer_integration_setup as _answer_integration_setup,
+    cancel_integration_setup as _cancel_integration_setup,
+    restart_remote as _restart_remote,
+)
 from .tools.restore import (
     diff_config as _diff_config,
     restore_config as _restore_config,
@@ -376,3 +391,145 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ----------------------------------------------------------------- integrations
+
+@mcp.tool()
+async def list_integrations(host: Optional[str] = None) -> dict:
+    """
+    Installed integration drivers and their configured instances.
+
+    device_state is not a health signal: an instance reports CONNECTED while
+    its entities are stale. Check the entities too.
+    """
+    return await _list_integrations(host=host)
+
+
+@mcp.tool()
+async def get_integration(integration_id: str, host: Optional[str] = None) -> dict:
+    """One integration instance in full, including the entities it has configured."""
+    return await _get_integration(integration_id=integration_id, host=host)
+
+
+@mcp.tool()
+async def list_integration_entities(
+    integration_id: str, only_new: bool = True, host: Optional[str] = None
+) -> dict:
+    """
+    Entities an integration offers. only_new re-polls the integration and lists
+    what is not exposed yet, which is required after pairing a new device.
+    """
+    return await _list_integration_entities(
+        integration_id=integration_id, only_new=only_new, host=host
+    )
+
+
+@mcp.tool()
+async def configure_integration_entities(
+    integration_id: str,
+    entity_ids: list[str],
+    dry_run: bool = True,
+    host: Optional[str] = None,
+) -> dict:
+    """
+    Expose entities from an integration so activities and pages can use them.
+    Additive; removes nothing. Setup finishing does not do this for you.
+    """
+    return await _configure_integration_entities(
+        integration_id=integration_id, entity_ids=entity_ids, dry_run=dry_run, host=host
+    )
+
+
+@mcp.tool()
+async def set_integration_enabled(
+    integration_id: str, enabled: bool, dry_run: bool = True, host: Optional[str] = None
+) -> dict:
+    """Enable or disable an integration instance."""
+    return await _set_integration_enabled(
+        integration_id=integration_id, enabled=enabled, dry_run=dry_run, host=host
+    )
+
+
+@mcp.tool()
+async def restart_integration(
+    integration_id: str, dry_run: bool = True, host: Optional[str] = None
+) -> dict:
+    """
+    Disable and re-enable an integration. The usual fix when devices stop
+    responding but the integration still claims to be connected.
+    """
+    return await _restart_integration(
+        integration_id=integration_id, dry_run=dry_run, host=host
+    )
+
+
+@mcp.tool()
+async def install_integration(
+    file_path: str, dry_run: bool = True, host: Optional[str] = None
+) -> dict:
+    """
+    Install a custom driver from a .tar.gz archive on this machine. There is no
+    in-place update: delete the old driver first. Restart the system afterwards
+    or its setup flow will not start.
+    """
+    return await _install_integration(file_path=file_path, dry_run=dry_run, host=host)
+
+
+@mcp.tool()
+async def delete_integration(
+    driver_id: str, dry_run: bool = True, host: Optional[str] = None
+) -> dict:
+    """
+    Remove a driver, its instance and all its entities. Also strips every button
+    mapping and page item that used them. Read the preview before applying.
+    """
+    return await _delete_integration(driver_id=driver_id, dry_run=dry_run, host=host)
+
+
+@mcp.tool()
+async def start_integration_setup(
+    driver_id: str, reconfigure: bool = False, host: Optional[str] = None
+) -> dict:
+    """
+    Begin an integration's setup and return its first screen. A 503 means the
+    driver process is not running yet, which is normal right after installing.
+    """
+    return await _start_integration_setup(
+        driver_id=driver_id, reconfigure=reconfigure, host=host
+    )
+
+
+@mcp.tool()
+async def get_integration_setup(driver_id: str, host: Optional[str] = None) -> dict:
+    """The current screen of a setup flow. 404 means no flow is in progress."""
+    return await _get_integration_setup(driver_id=driver_id, host=host)
+
+
+@mcp.tool()
+async def answer_integration_setup(
+    driver_id: str, values: dict, host: Optional[str] = None
+) -> dict:
+    """
+    Answer the current setup screen and return the next. Send every field the
+    screen asks for; a rejected step ends the flow and it must be restarted.
+    """
+    return await _answer_integration_setup(driver_id=driver_id, values=values, host=host)
+
+
+@mcp.tool()
+async def cancel_integration_setup(driver_id: str, host: Optional[str] = None) -> dict:
+    """Abandon an in-progress setup flow, changing nothing."""
+    return await _cancel_integration_setup(driver_id=driver_id, host=host)
+
+
+@mcp.tool()
+async def restart_remote(
+    target: str = "ui", dry_run: bool = True, host: Optional[str] = None
+) -> dict:
+    """
+    Restart the remote's "ui", "core", or "system". Sends no device commands and
+    changes no configuration. "ui" is how configuration changes are made to
+    repaint; "system" is required after installing a driver.
+    """
+    return await _restart_remote(target=target, dry_run=dry_run, host=host)

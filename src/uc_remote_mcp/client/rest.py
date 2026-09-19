@@ -44,6 +44,27 @@ class UCClient:
                 page += 1
         return items
 
+    async def post_file(self, path: str, file_path: str, field: str = "file") -> Any:
+        """POST a file as multipart/form-data.
+
+        Driver archives are tens of megabytes and the remote is on Wi-Fi in low
+        power, so this is given a long timeout: uploads have been seen to take
+        minutes, and a timeout mid-transfer leaves nothing installed.
+        """
+        import os
+
+        url = self._base + path
+        name = os.path.basename(file_path)
+        with open(file_path, "rb") as fh:
+            async with httpx.AsyncClient(timeout=600) as c:
+                r = await c.post(
+                    url,
+                    headers=self._headers,
+                    files={field: (name, fh, "application/gzip")},
+                )
+                r.raise_for_status()
+                return self._body(r)
+
     async def get_text(self, path: str) -> str:
         url = self._base + path
         async with httpx.AsyncClient(timeout=10) as c:

@@ -15,6 +15,14 @@
 | `backup_config` | Full config snapshot to JSON (keeps last 50) |
 | `diff_config` | Compare live config against a backup |
 
+## Integrations
+
+| Tool | Description |
+|------|-------------|
+| `list_integrations` | Installed drivers and configured instances, with state |
+| `get_integration` | One instance in full, including its configured entities |
+| `list_integration_entities` | What an integration offers; re-polls for new ones |
+
 ## Writes
 
 All default to `dry_run=True` and take a backup before applying.
@@ -29,3 +37,18 @@ All default to `dry_run=True` and take a backup before applying.
 | `set_default_ui_page` | Reorder pages — the first one is the default |
 | `update_activity_sequence` | Edit an activity's on/off command sequence |
 | `restore_config` | Restore from a backup via a two-step token flow |
+
+## Integration writes
+
+| Tool | Description |
+|------|-------------|
+| `configure_integration_entities` | Expose entities so activities and pages can use them |
+| `restart_integration` | Disable and re-enable an instance — the usual fix when devices stop responding |
+| `set_integration_enabled` | Enable or disable an instance |
+| `install_integration` | Install a custom driver from a `.tar.gz` |
+| `delete_integration` | Remove a driver, its instance and all its entities |
+| `start_integration_setup` | Begin setup and return the first screen |
+| `get_integration_setup` | The current screen of a running flow |
+| `answer_integration_setup` | Answer a screen and return the next |
+| `cancel_integration_setup` | Abandon a flow, changing nothing |
+| `restart_remote` | Restart the `ui`, `core`, or whole `system` |
