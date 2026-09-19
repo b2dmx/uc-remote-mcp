@@ -51,7 +51,9 @@ async def send_command(
         body["params"] = params
 
     async def do_write():
-        return await client.put(f"/api/entities/{device_id}/command", body)
+        # Cloud-backed drivers (Govee, and anything else reaching a vendor API)
+        # routinely take longer than the default write timeout to answer.
+        return await client.put(f"/api/entities/{device_id}/command", body, timeout=45)
 
     return await apply_mutation(
         client,

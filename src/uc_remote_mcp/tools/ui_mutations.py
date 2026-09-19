@@ -151,6 +151,62 @@ async def update_ui_page(
     )
 
 
+async def create_ui_page(
+    scope: str,
+    scope_id: str,
+    name: str,
+    grid: dict,
+    items: Optional[list] = None,
+    dry_run: bool = True,
+    host: Optional[str] = None,
+) -> dict:
+    """
+    Add a new UI page to an activity or remote-entity.
+
+    Items are validated exactly as for update_ui_page, so a command naming an
+    entity the activity does not include is refused before anything is written.
+    The remote assigns the page id and appends the page last; use
+    set_default_ui_page to reorder.
+    """
+    base = _scope_base(scope)
+    scope = scope.lower()
+    if not name:
+        raise ValueError("A page needs a name.")
+    if not isinstance(grid, dict) or not {"width", "height"} <= set(grid):
+        raise ValueError("grid must be {'width': N, 'height': M}.")
+
+    client = get_client(host)
+    detail = await client.get(f"/api/{base}/{scope_id}")
+    items = items or []
+    errors = _validate_items(scope, detail, items)
+    if errors:
+        raise ValueError("Invalid items: " + " | ".join(errors))
+
+    body = {"name": name, "grid": grid, "items": items}
+    path = f"/api/{base}/{scope_id}/ui/pages"
+
+    async def do_write():
+        return await client.post(path, body)
+
+    return await apply_mutation(
+        client,
+        action="create_ui_page",
+        summary=(
+            f"{scope} {localized(detail.get('name'))}: create page '{name}' "
+            f"({grid['width']}x{grid['height']}, {len(items)} items)"
+        ),
+        change={
+            "scope": scope,
+            "scope_id": scope_id,
+            "to": {"name": name, "grid": grid, "item_count": len(items)},
+            "existing_pages": [p.get("name") for p in pages_of(detail)],
+            "endpoint": f"POST {path}",
+        },
+        do_write=do_write,
+        dry_run=dry_run,
+    )
+
+
 async def delete_ui_page(
     scope: str,
     scope_id: str,

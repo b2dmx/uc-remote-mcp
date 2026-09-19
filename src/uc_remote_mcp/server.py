@@ -28,6 +28,7 @@ from .tools.mutations import (
 )
 from .tools.ui_mutations import (
     update_ui_page as _update_ui_page,
+    create_ui_page as _create_ui_page,
     delete_ui_page as _delete_ui_page,
     set_default_ui_page as _set_default_ui_page,
     update_activity_sequence as _update_activity_sequence,
@@ -45,6 +46,8 @@ from .tools.integrations import (
     get_integration_setup as _get_integration_setup,
     answer_integration_setup as _answer_integration_setup,
     cancel_integration_setup as _cancel_integration_setup,
+    confirm_integration_setup as _confirm_integration_setup,
+    delete_integration_instance as _delete_integration_instance,
     restart_remote as _restart_remote,
 )
 from .tools.inclusion import (
@@ -494,14 +497,21 @@ async def delete_integration(
 
 @mcp.tool()
 async def start_integration_setup(
-    driver_id: str, reconfigure: bool = False, host: Optional[str] = None
+    driver_id: str,
+    reconfigure: bool = False,
+    setup_data: Optional[dict] = None,
+    host: Optional[str] = None,
 ) -> dict:
     """
-    Begin an integration's setup and return its first screen. A 503 means the
-    driver process is not running yet, which is normal right after installing.
+    Begin an integration's setup and return its first screen.
+
+    Some drivers require a value up front (usually an API key) and answer
+    "400 Setup data not provided for field: X" without it — pass
+    setup_data={"X": "..."}. A 503 means the driver process is not running yet,
+    which is normal right after installing: restart the system first.
     """
     return await _start_integration_setup(
-        driver_id=driver_id, reconfigure=reconfigure, host=host
+        driver_id=driver_id, reconfigure=reconfigure, setup_data=setup_data, host=host
     )
 
 
@@ -586,4 +596,52 @@ async def remove_scope_entities(
     """
     return await _remove_scope_entities(
         scope_id=scope_id, entity_ids=entity_ids, scope=scope, dry_run=dry_run, host=host
+    )
+
+
+@mcp.tool()
+async def confirm_integration_setup(
+    driver_id: str, confirm: bool = True, host: Optional[str] = None
+) -> dict:
+    """
+    Answer a confirmation screen ("press the button on the device, then
+    continue") and return the next one. Use answer_integration_setup for
+    screens with fields; this is for the ones without.
+    """
+    return await _confirm_integration_setup(driver_id=driver_id, confirm=confirm, host=host)
+
+
+@mcp.tool()
+async def delete_integration_instance(
+    integration_id: str, dry_run: bool = True, host: Optional[str] = None
+) -> dict:
+    """
+    Remove one configured instance and its entities, keeping the driver. The
+    teardown for firmware-shipped drivers. Also strips every button mapping and
+    page item that used those entities — read the preview.
+    """
+    return await _delete_integration_instance(
+        integration_id=integration_id, dry_run=dry_run, host=host
+    )
+
+
+@mcp.tool()
+async def create_ui_page(
+    scope: str,
+    scope_id: str,
+    name: str,
+    grid: dict,
+    items: Optional[list] = None,
+    dry_run: bool = True,
+    host: Optional[str] = None,
+) -> dict:
+    """
+    Add a new page to an activity or remote-entity. scope is "activity" or
+    "remote". grid is {"width": N, "height": M}; items use the same shape as
+    get_ui_page returns. The page is appended last; reorder with
+    set_default_ui_page. Every item command is validated first.
+    """
+    return await _create_ui_page(
+        scope=scope, scope_id=scope_id, name=name, grid=grid, items=items,
+        dry_run=dry_run, host=host,
     )

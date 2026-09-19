@@ -14,11 +14,23 @@ from uc_remote_mcp.tools import inclusion
 class FakeClient:
     """Records what would be written, and serves a fixed current list."""
 
-    def __init__(self, current: list[str]):
-        self._current = current
+    def __init__(self, current: list[str], known: list[str] | None = None):
+        self._current = list(current)
+        # Ids the fake remote recognises; unknown ones 404 like the real one.
+        self._known = set(known if known is not None else current + ["b", "c"])
         self.patched: list[tuple[str, dict]] = []
 
     async def get(self, path: str, **params):
+        if path.startswith("/api/entities/"):
+            eid = path.rsplit("/", 1)[1]
+            if eid not in self._known:
+                import httpx
+
+                req = httpx.Request("GET", "http://x" + path)
+                raise httpx.HTTPStatusError(
+                    "404", request=req, response=httpx.Response(404, request=req)
+                )
+            return {"entity_id": eid}
         return {
             "options": {
                 "included_entities": [
@@ -30,6 +42,9 @@ class FakeClient:
 
     async def patch(self, path: str, body=None):
         self.patched.append((path, body))
+        # The real remote keeps only ids it knows; mirror that so read-back
+        # reflects reality rather than the request.
+        self._current = [e for e in body["options"]["entity_ids"] if e in self._known]
         return {}
 
 
@@ -47,8 +62,8 @@ def client(monkeypatch):
 
     monkeypatch.setattr(dry_run_mod, "create_backup", _no_backup)
 
-    def _make(current):
-        c = FakeClient(current)
+    def _make(current, known=None):
+        c = FakeClient(current, known)
         monkeypatch.setattr(inclusion, "get_client", lambda host=None: c)
         return c
 
@@ -119,3 +134,19 @@ class TestRemove:
         r = await inclusion.remove_scope_entities("act1", ["zzz"], dry_run=False)
         assert written(c) == ["a"]
         assert any("Not configured here" in w for w in r["warnings"])
+
+
+class TestValidation:
+    @pytest.mark.asyncio
+    async def test_unknown_id_is_refused_before_anything_is_written(self, client):
+        c = client(["a"], known=["a"])
+        with pytest.raises(ValueError) as e:
+            await inclusion.add_scope_entities("act1", ["16"], dry_run=False)
+        assert "16" in str(e.value) and c.patched == []
+
+    @pytest.mark.asyncio
+    async def test_result_reports_what_the_remote_kept(self, client):
+        client(["a"], known=["a", "b"])
+        r = await inclusion.add_scope_entities("act1", ["b"], dry_run=False)
+        assert r["result"]["entity_count"] == 2
+        assert "dropped_by_remote" not in r["result"]

@@ -70,7 +70,20 @@ async def get_integration(integration_id: str, host: Optional[str] = None) -> di
     """One instance in full, with how many entities it has configured."""
     client = get_client(host)
     inst = await client.get(f"/api/intg/instances/{integration_id}")
-    configured = await client.get_list(f"/api/intg/instances/{integration_id}/entities")
+    # Without a filter this endpoint lists what the driver OFFERS, using the
+    # driver's own short ids -- not what is configured. CONFIGURED is the
+    # exposed set; the remote-wide id is the instance id plus the short id.
+    configured = await client.get_list(
+        f"/api/intg/instances/{integration_id}/entities?filter=CONFIGURED", page_size=100
+    )
+
+    states = {
+        e["entity_id"]: e["state"]
+        for e in await _states(
+            client,
+            [f"{integration_id}.{c.get('entity_id')}" for c in configured],
+        )
+    }
 
     return {
         "integration_id": inst.get("integration_id"),
@@ -81,9 +94,13 @@ async def get_integration(integration_id: str, host: Optional[str] = None) -> di
         "configured_entities": len(configured),
         "entities": [
             {
-                "entity_id": e.get("entity_id"),
+                "entity_id": f"{integration_id}.{e.get('entity_id')}",
+                "driver_entity_id": e.get("entity_id"),
                 "name": localized(e.get("name")),
                 "entity_type": e.get("entity_type"),
+                # UNKNOWN means the driver has no state for it: not polled yet,
+                # or the device is not there.
+                "state": states.get(f"{integration_id}.{e.get('entity_id')}"),
             }
             for e in configured
         ],
@@ -111,15 +128,41 @@ async def list_integration_entities(
         "integration_id": integration_id,
         "filter": "NEW" if only_new else "ALL",
         "count": len(items),
+        # driver_entity_id is what configure_integration_entities takes; the
+        # remote-wide entity_id is what exists once it has been configured.
         "entities": [
             {
-                "entity_id": e.get("entity_id"),
+                "driver_entity_id": e.get("entity_id"),
+                "entity_id": f"{integration_id}.{e.get('entity_id')}",
                 "name": localized(e.get("name")),
                 "entity_type": e.get("entity_type"),
             }
             for e in items
         ],
     }
+
+
+async def _states(client, entity_ids: list[str]) -> list[dict]:
+    """What each entity reports right now, or None if the remote lost it."""
+    import httpx
+
+    out = []
+    for eid in entity_ids:
+        try:
+            e = await client.get(f"/api/entities/{eid}")
+        except httpx.HTTPStatusError as err:
+            if err.response.status_code != 404:
+                raise
+            out.append({"entity_id": eid, "name": None, "state": "NOT_FOUND"})
+            continue
+        out.append(
+            {
+                "entity_id": eid,
+                "name": localized(e.get("name")),
+                "state": (e.get("attributes") or {}).get("state"),
+            }
+        )
+    return out
 
 
 # --------------------------------------------------------------------- writing
@@ -137,16 +180,58 @@ async def configure_integration_entities(
     Additive: this adds to what is already configured and removes nothing.
     """
     client = get_client(host)
+    full_ids = [
+        e if e.startswith(f"{integration_id}.") else f"{integration_id}.{e}"
+        for e in entity_ids
+    ]
+
+    async def _write() -> dict:
+        # The response lists only ids newly added, so an already-configured
+        # entity comes back as an empty list rather than an error.
+        added = await client.post(
+            f"/api/intg/instances/{integration_id}/entities", entity_ids
+        )
+        states = await _states(client, full_ids)
+        result = {
+            "newly_added": added if isinstance(added, list) else added,
+            "entities": states,
+        }
+        # A device that is not actually reachable reports UNKNOWN and will not
+        # respond to anything put on a page -- worth saying out loud rather than
+        # letting it be discovered by pressing a dead button.
+        # UNKNOWN is the correct resting state for entity types that have no
+        # state of their own -- a remote, a button, a macro -- so flagging them
+        # would be crying wolf. Only types that report a state are checked.
+        stateless = {"remote", "button", "macro", "voice_assistant"}
+        types = {
+            e.get("entity_id"): e.get("entity_type")
+            for e in await client.get_list(
+                f"/api/intg/instances/{integration_id}/entities?filter=CONFIGURED",
+                page_size=100,
+            )
+        }
+        unknown = [
+            e["entity_id"]
+            for e in states
+            if e["state"] in (None, "UNKNOWN")
+            and types.get(e["entity_id"].split(".")[-1]) not in stateless
+        ]
+        if unknown:
+            result["not_reporting"] = unknown
+            result["hint"] = (
+                "These report no state. Either the driver has not polled them "
+                "yet -- restart_integration forces that -- or the device is not "
+                "reachable. Check again before putting them on a page."
+            )
+        return result
 
     return await apply_mutation(
         client,
         action="configure_integration_entities",
         summary=f"expose {len(entity_ids)} entit"
         f"{'y' if len(entity_ids) == 1 else 'ies'} from {integration_id}",
-        change={"integration_id": integration_id, "entity_ids": entity_ids},
-        do_write=lambda: client.post(
-            f"/api/intg/instances/{integration_id}/entities", entity_ids
-        ),
+        change={"integration_id": integration_id, "entity_ids": full_ids},
+        do_write=_write,
         dry_run=dry_run,
     )
 
@@ -225,13 +310,53 @@ async def install_integration(
         action="install_integration",
         summary=f"upload and install driver archive {file_path}",
         change={"file": file_path},
-        do_write=lambda: client.post_file("/api/intg/install", file_path),
+        do_write=lambda: _install_and_verify(client, file_path),
         dry_run=dry_run,
         warnings=[
             "The driver process only starts after a system restart; run "
             "restart_remote(target='system') before starting its setup flow.",
         ],
     )
+
+
+async def _install_and_verify(client, file_path: str) -> dict:
+    """Upload, then check the driver list rather than trusting the status code.
+
+    The install endpoint has been seen to answer 422 *after* installing the
+    driver successfully. Reporting that as a failure sends people off to debug
+    something that already worked, so confirm against the driver list either way.
+    """
+    import httpx
+
+    before = {d.get("driver_id") for d in await client.get_list("/api/intg/drivers")}
+    error = None
+    try:
+        await client.post_file("/api/intg/install", file_path)
+    except httpx.HTTPStatusError as err:
+        error = str(err)
+
+    after = await client.get_list("/api/intg/drivers")
+    new_ids = [d.get("driver_id") for d in after if d.get("driver_id") not in before]
+
+    if not new_ids:
+        raise RuntimeError(
+            error or "The install reported success but no new driver appeared."
+        )
+
+    out = {
+        "installed": new_ids,
+        "driver": next(
+            (
+                {k: d.get(k) for k in ("driver_id", "version", "driver_type", "driver_state")}
+                for d in after
+                if d.get("driver_id") in new_ids
+            ),
+            None,
+        ),
+    }
+    if error:
+        out["note"] = "The remote returned an error, but the driver is installed: " + error
+    return out
 
 
 async def delete_integration(
@@ -253,10 +378,39 @@ async def delete_integration(
         action="delete_integration",
         summary=f"delete driver {driver_id}, its instance and all its entities",
         change={"driver_id": driver_id},
-        do_write=lambda: client.delete(f"/api/intg/drivers/{driver_id}"),
+        do_write=lambda: client.delete(f"/api/intg/drivers/{driver_id}", timeout=120),
         dry_run=dry_run,
         warnings=[
             "Every button mapping and page item using this driver's entities "
+            "will be removed with them.",
+        ],
+    )
+
+
+async def delete_integration_instance(
+    integration_id: str,
+    dry_run: bool = True,
+    host: Optional[str] = None,
+) -> dict:
+    """
+    Remove one configured instance and every entity it provided, leaving the
+    driver installed. The right teardown for a firmware-shipped driver, which
+    cannot be deleted itself.
+
+    Removing the entities also strips every button mapping and page item that
+    referenced them. A backup is taken first, but read the preview.
+    """
+    client = get_client(host)
+
+    return await apply_mutation(
+        client,
+        action="delete_integration_instance",
+        summary=f"remove instance {integration_id} and all its entities",
+        change={"integration_id": integration_id},
+        do_write=lambda: client.delete(f"/api/intg/instances/{integration_id}", timeout=60),
+        dry_run=dry_run,
+        warnings=[
+            "Every button mapping and page item using this instance's entities "
             "will be removed with them.",
         ],
     )
@@ -348,19 +502,42 @@ async def _wait_for_screen(client, driver_id: str, timeout: float = 15.0) -> dic
 
 
 async def start_integration_setup(
-    driver_id: str, reconfigure: bool = False, host: Optional[str] = None
+    driver_id: str,
+    reconfigure: bool = False,
+    setup_data: Optional[dict] = None,
+    host: Optional[str] = None,
 ) -> dict:
     """
     Begin (or reconfigure) an integration's setup, returning its first screen.
 
+    Some drivers want a value up front rather than asking for it -- an API key,
+    typically -- and refuse to start without it: ``400 Setup data not provided
+    for field: <name>``. Pass it as ``setup_data={"api_key": "..."}``. The field
+    name in that error is the key to use.
+
     A 503 here means the driver's process is not running, which is normal
-    straight after installing one: restart the remote and try again.
+    straight after installing one: restart the system and try again.
     """
     client = get_client(host)
     body: dict[str, Any] = {"driver_id": driver_id}
     if reconfigure:
         body["reconfigure"] = True
-    await client.post("/api/intg/setup", body)
+    if setup_data:
+        body["setup_data"] = _stringify(setup_data)
+    # The core starts a custom driver lazily, on demand. If the driver was just
+    # stopped -- cancelling a flow stops it, "no more instances" -- the start
+    # races that shutdown and systemd cancels the job, surfacing as 503. It
+    # succeeds moments later, so retry rather than making the caller guess.
+    import asyncio
+
+    for attempt in range(4):
+        try:
+            await client.post("/api/intg/setup", body, timeout=90)
+            break
+        except httpx.HTTPStatusError as err:
+            if err.response.status_code != 503 or attempt == 3:
+                raise
+            await asyncio.sleep(8)
     return await _wait_for_screen(client, driver_id)
 
 
@@ -387,8 +564,24 @@ async def answer_integration_setup(
     """
     client = get_client(host)
     await client.put(
-        f"/api/intg/setup/{driver_id}", {"input_values": _stringify(values)}
+        f"/api/intg/setup/{driver_id}", {"input_values": _stringify(values)}, timeout=90
     )
+    return await _wait_for_screen(client, driver_id)
+
+
+async def confirm_integration_setup(
+    driver_id: str, confirm: bool = True, host: Optional[str] = None
+) -> dict:
+    """
+    Answer a confirmation screen -- "press the button on the bridge, then
+    continue" -- and return the next one.
+
+    Confirmation pages have no fields, so they are answered with a yes/no
+    rather than values. ``confirm=False`` is the "no" branch where a flow
+    offers one.
+    """
+    client = get_client(host)
+    await client.put(f"/api/intg/setup/{driver_id}", {"confirm": confirm}, timeout=90)
     return await _wait_for_screen(client, driver_id)
 
 

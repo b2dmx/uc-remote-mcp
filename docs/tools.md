@@ -32,6 +32,7 @@ All default to `dry_run=True` and take a backup before applying.
 | `send_command` | Fire a one-off command at a device |
 | `set_button_mapping` | Bind one button |
 | `bulk_set_button_mapping` | Bind the same button across many activities |
+| `create_ui_page` | Add a page to an activity or remote-entity |
 | `update_ui_page` | Replace a page's name, grid, or items |
 | `delete_ui_page` | Remove a page (irreversible on the device) |
 | `set_default_ui_page` | Reorder pages — the first one is the default |
@@ -47,9 +48,11 @@ All default to `dry_run=True` and take a backup before applying.
 | `set_integration_enabled` | Enable or disable an instance |
 | `install_integration` | Install a custom driver from a `.tar.gz` |
 | `delete_integration` | Remove a driver, its instance and all its entities |
+| `delete_integration_instance` | Remove one instance, keeping the driver — the teardown for firmware-shipped drivers |
 | `start_integration_setup` | Begin setup and return the first screen |
 | `get_integration_setup` | The current screen of a running flow |
 | `answer_integration_setup` | Answer a screen and return the next |
+| `confirm_integration_setup` | Answer a confirmation screen ("press the button on the device") |
 | `cancel_integration_setup` | Abandon a flow, changing nothing |
 | `restart_remote` | Restart the `ui`, `core`, or whole `system` |
 

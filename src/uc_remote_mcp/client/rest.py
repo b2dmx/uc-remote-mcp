@@ -14,7 +14,7 @@ class UCClient:
         url = self._base + path
         async with httpx.AsyncClient(timeout=10) as c:
             r = await c.get(url, headers=self._headers, params=params or None)
-            r.raise_for_status()
+            UCClient._raise(r)
             return r.json()
 
     async def get_list(self, path: str, page_size: int = 100) -> list:
@@ -31,7 +31,7 @@ class UCClient:
             while True:
                 url = f"{self._base}{path}{sep}page={page}&limit={page_size}"
                 r = await c.get(url, headers=self._headers)
-                r.raise_for_status()
+                UCClient._raise(r)
                 batch = r.json()
                 if not isinstance(batch, list):
                     return batch
@@ -62,15 +62,41 @@ class UCClient:
                     headers=self._headers,
                     files={field: (name, fh, "application/gzip")},
                 )
-                r.raise_for_status()
+                UCClient._raise(r)
                 return self._body(r)
 
     async def get_text(self, path: str) -> str:
         url = self._base + path
         async with httpx.AsyncClient(timeout=10) as c:
             r = await c.get(url, headers=self._headers)
-            r.raise_for_status()
+            UCClient._raise(r)
             return r.text
+
+    @staticmethod
+    def _raise(r: httpx.Response) -> None:
+        """raise_for_status, but carrying what the remote actually said.
+
+        The API answers failures with a JSON body naming the reason -- e.g.
+        ALREADY_EXISTS on a driver install, or which field a setup flow
+        rejected. httpx's default message drops it, leaving a bare status code
+        and no way to tell what went wrong.
+        """
+        if r.status_code < 400:
+            return
+        detail = ""
+        try:
+            body = r.json()
+            if isinstance(body, dict):
+                code, msg = body.get("code"), body.get("message")
+                detail = f"{code}: {msg}" if code and msg else (msg or code or "")
+        except Exception:  # noqa: BLE001 -- non-JSON error bodies exist
+            detail = (r.text or "").strip()[:300]
+        raise httpx.HTTPStatusError(
+            f"{r.status_code} from {r.request.method} {r.request.url.path}"
+            + (f" -- {detail}" if detail else ""),
+            request=r.request,
+            response=r,
+        )
 
     @staticmethod
     def _body(r: httpx.Response) -> Any:
@@ -82,32 +108,40 @@ class UCClient:
             return r.json()
         return r.text
 
-    async def post(self, path: str, body: Any = None) -> Any:
+    async def post(self, path: str, body: Any = None, timeout: float = 10) -> Any:
+        """timeout is raised for operations the remote performs synchronously --
+        integration setup talks to a vendor cloud and routinely exceeds 10s."""
         url = self._base + path
-        async with httpx.AsyncClient(timeout=10) as c:
+        async with httpx.AsyncClient(timeout=timeout) as c:
             r = await c.post(url, headers=self._headers, json=body)
-            r.raise_for_status()
+            UCClient._raise(r)
             return self._body(r)
 
-    async def put(self, path: str, body: Any = None) -> Any:
+    async def put(self, path: str, body: Any = None, timeout: float = 10) -> Any:
+        """timeout is raised for operations the remote performs synchronously --
+        integration setup talks to a vendor cloud and routinely exceeds 10s."""
         url = self._base + path
-        async with httpx.AsyncClient(timeout=10) as c:
+        async with httpx.AsyncClient(timeout=timeout) as c:
             r = await c.put(url, headers=self._headers, json=body)
-            r.raise_for_status()
+            UCClient._raise(r)
             return self._body(r)
 
-    async def patch(self, path: str, body: Any = None) -> Any:
+    async def patch(self, path: str, body: Any = None, timeout: float = 10) -> Any:
+        """timeout is raised for operations the remote performs synchronously --
+        integration setup talks to a vendor cloud and routinely exceeds 10s."""
         url = self._base + path
-        async with httpx.AsyncClient(timeout=10) as c:
+        async with httpx.AsyncClient(timeout=timeout) as c:
             r = await c.patch(url, headers=self._headers, json=body)
-            r.raise_for_status()
+            UCClient._raise(r)
             return self._body(r)
 
-    async def delete(self, path: str) -> Any:
+    async def delete(self, path: str, timeout: float = 10) -> Any:
+        """timeout is raised for deletes the remote performs synchronously --
+        uninstalling a driver removes files and stops a service."""
         url = self._base + path
-        async with httpx.AsyncClient(timeout=10) as c:
+        async with httpx.AsyncClient(timeout=timeout) as c:
             r = await c.delete(url, headers=self._headers)
-            r.raise_for_status()
+            UCClient._raise(r)
             return self._body(r)
 
     @classmethod
@@ -132,14 +166,14 @@ class UCClient:
             )
             if login.status_code == 401:
                 raise ValueError("Wrong PIN — authentication failed.")
-            login.raise_for_status()
+            UCClient._raise(login)
 
             # Session cookie is set automatically; reuse same client for step 2
             r = await c.post(
                 f"{base}/api/auth/api_keys",
                 json={"name": key_name, "scopes": ["admin"]},
             )
-            r.raise_for_status()
+            UCClient._raise(r)
             data = r.json()
 
         api_key = data.get("api_key") or data.get("key") or data["token"]

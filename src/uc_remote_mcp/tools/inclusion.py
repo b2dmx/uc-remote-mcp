@@ -57,6 +57,34 @@ async def list_scope_entities(
     }
 
 
+async def _missing(client, entity_ids: list[str]) -> list[str]:
+    """Ids the remote does not know. It silently drops these on write, so a
+    caller who passed a driver's short id would otherwise see success."""
+    import httpx
+
+    missing = []
+    for eid in entity_ids:
+        try:
+            await client.get(f"/api/entities/{eid}")
+        except httpx.HTTPStatusError as err:
+            if err.response.status_code == 404:
+                missing.append(eid)
+            else:
+                raise
+    return missing
+
+
+async def _write_and_read_back(client, scope: str, scope_id: str, wanted: list[str]) -> dict:
+    """PATCH the full list, then report what the remote actually kept."""
+    await client.patch(f"{_base(scope)}/{scope_id}", {"options": {"entity_ids": wanted}})
+    actual, _ = await _current(client, scope, scope_id)
+    dropped = [e for e in wanted if e not in actual]
+    out = {"entity_count": len(actual)}
+    if dropped:
+        out["dropped_by_remote"] = dropped
+    return out
+
+
 async def add_scope_entities(
     scope_id: str,
     entity_ids: list[str],
@@ -72,6 +100,15 @@ async def add_scope_entities(
     """
     client = get_client(host)
     current, _ = await _current(client, scope, scope_id)
+    missing = await _missing(client, entity_ids)
+    if missing:
+        raise ValueError(
+            "Not known to the remote, so refusing to write: "
+            + ", ".join(missing)
+            + ". If these came from an integration's entity list, use the full "
+            "entity_id (integration id + '.' + the driver's id), and make sure "
+            "they have been configured first."
+        )
     already = [e for e in entity_ids if e in current]
     adding = [e for e in entity_ids if e not in current]
     merged = current + adding
@@ -94,9 +131,7 @@ async def add_scope_entities(
             "before_count": len(current),
             "after_count": len(merged),
         },
-        do_write=lambda: client.patch(
-            f"{_base(scope)}/{scope_id}", {"options": {"entity_ids": merged}}
-        ),
+        do_write=lambda: _write_and_read_back(client, scope, scope_id, merged),
         dry_run=dry_run,
         warnings=warnings or None,
     )
@@ -146,9 +181,7 @@ async def remove_scope_entities(
             "before_count": len(current),
             "after_count": len(remaining),
         },
-        do_write=lambda: client.patch(
-            f"{_base(scope)}/{scope_id}", {"options": {"entity_ids": remaining}}
-        ),
+        do_write=lambda: _write_and_read_back(client, scope, scope_id, remaining),
         dry_run=dry_run,
         warnings=warnings,
     )
