@@ -93,8 +93,8 @@ and restore.
 Things that cost people config, and what to do when the remote misbehaves:
 **[Field notes →](docs/notes.md)**
 
-Built and tested against a **Remote 3** (core 0.69.x, API 0.16). The Remote Two
-shares the same API and should work, but is untested.
+Built and tested against a **Remote 3** on firmware 2.8.x (core 0.69.x, API
+0.16). The Remote Two shares the same API and should work, but is untested.
 
 ## Credits
 
