@@ -32,6 +32,7 @@ All default to `dry_run=True` and take a backup before applying.
 | `send_command` | Fire a one-off command at a device |
 | `set_button_mapping` | Bind one button |
 | `bulk_set_button_mapping` | Bind the same button across many activities |
+| `create_activity` | Create an activity — a "device" on the home screen |
 | `create_ui_page` | Add a page to an activity or remote-entity |
 | `update_ui_page` | Replace a page's name, grid, or items |
 | `delete_ui_page` | Remove a page (irreversible on the device) |

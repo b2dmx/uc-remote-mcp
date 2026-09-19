@@ -1,6 +1,16 @@
 # Field notes
 
-Behaviour that is not obvious from the API, verified against firmware 0.69.x.
+Behaviour that is not obvious from the API, verified against firmware 2.8.x.
+
+## Safety model
+
+- Every write previews first and does nothing until you pass `dry_run=false`.
+- Every real write takes a full config backup beforehand; the last 50 are kept.
+- Commands and entity names are checked against the device before any network
+  call, so a typo fails immediately rather than half-way through.
+- `restore_config` restores your customisations — names, buttons, pages,
+  sequences. Entities come from integrations and cannot be recreated that way;
+  they are reported instead of touched.
 
 ## Things that cost you config
 

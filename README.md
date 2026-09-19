@@ -3,14 +3,19 @@
 [![tests](https://github.com/b2dmx/uc-remote-mcp/actions/workflows/tests.yml/badge.svg)](https://github.com/b2dmx/uc-remote-mcp/actions/workflows/tests.yml)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/goobis2dmx)
 
-Control an **Unfolded Circle Remote 3 / Remote Two** by talking to Claude.
-Ask what a button does, remap it, redesign a page, back up your config — in
-plain language.
+Set up and control an **Unfolded Circle Remote 3 / Remote Two** with natural language through
+Claude.
 
-## Install
+- **Layouts** — build a device or a page
+- **Buttons** — ask what a button does, remap it, to both software and hardware
+- **Integrations** — install, set up
+- **Backups** — snapshot your configuration, see what changed, restore it
+- **Updates** — keep your setup up to date
 
-**1. Install `uv`**, which is what actually runs this. One line, then reopen the
-terminal:
+## Installation
+
+**1. Prerequisite Install: [uv](https://docs.astral.sh/uv/getting-started/installation/)**, which runs it.
+If you already use another Python MCP server — `ha-mcp`, for instance — you have it already.
 
 ```powershell
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
@@ -20,9 +25,10 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 curl -LsSf https://astral.sh/uv/install.sh | sh    # macOS / Linux
 ```
 
-**2. Add this to your MCP client config**
-(Claude Desktop: `%APPDATA%\Claude\claude_desktop_config.json` on Windows,
-`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+**2. Add this to your MCP client config.** For Claude Desktop:
+`%APPDATA%\Claude\claude_desktop_config.json` (Windows) or
+`~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) —
+create it if it isn't there:
 
 ```json
 {
@@ -31,7 +37,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh    # macOS / Linux
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/b2dmx/uc-remote-mcp@v1.0.0",
+        "git+https://github.com/b2dmx/uc-remote-mcp@v1.0.1",
         "uc-remote-mcp"
       ]
     }
@@ -39,77 +45,40 @@ curl -LsSf https://astral.sh/uv/install.sh | sh    # macOS / Linux
 }
 ```
 
-If the file does not exist, create it. If it already has an `"mcpServers"`
-section, add the `"uc-remote"` block inside it rather than adding a second one.
-
-**3. Restart the client.** Everything else is fetched and built on first launch,
-which takes a minute — there is nothing to download by hand.
-
-### Updating
-
-Change the version in that config to the release you want, then restart the
-client. Releases are listed on the
-[releases page](https://github.com/b2dmx/uc-remote-mcp/releases); click
-**Watch → Custom → Releases** on the repository to be told about new ones.
-
-To always run the newest code instead, drop the `@v...` part entirely. That tracks the
-default branch, which is less predictable — fine for trying things, less so for
-something that edits your remote's configuration.
+**3. Restart the client.** First launch takes a minute while it builds.
 
 ## Pair
 
-On the remote: **Settings → Web Configurator**, toggle it on, note the PIN.
-Then tell Claude:
+On the remote: **Settings → Web Configurator**, turn it on, note the PIN. Then
+tell Claude:
 
 > Discover my Unfolded Circle remote and set it up with PIN 1234.
 
-The PIN is traded for a long-lived API key. That's the whole setup.
 
-## Try it
+## Examples
 
-- "What's the battery level on my remote?"
-- "What does the volume button do in each activity?"
-- "Map PLAY in the TV activity to the Apple TV's play/pause."
-- "Back up my config." / "What changed since that backup?"
-- "My Apple TV stopped responding — restart that integration."
+- *"What does the volume button do in each activity?"*
+- *"Map PLAY in the TV activity to the Apple TV's play/pause."*
+- *"Install [integration] and set it up."*
+- *"My Apple TV stopped responding — restart that integration."*
+- *"Back up my config."* / *"What changed since that backup?"*
 
-## What it can do
+## More
 
-Read everything — devices, activities, button mappings, page layouts — and
-change any of it: bind buttons, rebuild pages, edit activity sequences, back up
-and restore.
+[All the tools →](docs/tools.md) · [Field notes →](docs/notes.md)
 
-It also manages **integrations**: install a driver, walk through its setup flow
-by answering questions in chat, choose which entities get exposed, add them to
-an activity, and restart one when a device stops responding.
+To update, change the version in your config and restart. Watch → Custom →
+Releases to hear about new ones.
 
-**[Full tool list →](docs/tools.md)**
-
-## Safety
-
-- Writes preview first; nothing changes until you pass `dry_run=false`
-- Every real write takes a backup first (last 50 kept)
-- Commands and entity names are validated before any network call
-- `restore_config` restores your customisations, not entities — those come from
-  integrations and are reported rather than touched
-
-## Notes
-
-Things that cost people config, and what to do when the remote misbehaves:
-**[Field notes →](docs/notes.md)**
-
-Built and tested against a **Remote 3** on firmware 2.8.x (core 0.69.x, API
-0.16). The Remote Two shares the same API and should work, but is untested.
+Built and tested against a **Remote 3** on firmware 2.8.x. The Remote Two shares
+the same API and should work, but is untested.
 
 ## Credits
 
-Built with [Claude](https://claude.com/claude-code), designed and live-tested
-against a real Remote 3. Tool design informed by
+Built with [Claude](https://claude.com/claude-code). Tool design informed by
 [ha-mcp](https://pypi.org/project/ha-mcp/); API reference from the
-[Unfolded Circle Core API](https://github.com/unfoldedcircle/core-api) spec.
+[Unfolded Circle Core API](https://github.com/unfoldedcircle/core-api).
 
 Not affiliated with or endorsed by Unfolded Circle.
-
-## License
 
 [MIT](LICENSE)

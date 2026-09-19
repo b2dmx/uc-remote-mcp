@@ -17,6 +17,7 @@ from .tools.devices import (
 from .tools.activities import (
     list_activities as _list_activities,
     get_activity as _get_activity,
+    create_activity as _create_activity,
 )
 from .tools.buttons import get_button_mapping as _get_button_mapping
 from .tools.ui import list_ui_pages as _list_ui_pages, get_ui_page as _get_ui_page
@@ -644,4 +645,29 @@ async def create_ui_page(
     return await _create_ui_page(
         scope=scope, scope_id=scope_id, name=name, grid=grid, items=items,
         dry_run=dry_run, host=host,
+    )
+
+
+@mcp.tool()
+async def create_activity(
+    name: str,
+    icon: Optional[str] = None,
+    description: Optional[str] = None,
+    entity_ids: Optional[list[str]] = None,
+    clone_from: Optional[str] = None,
+    dry_run: bool = True,
+    host: Optional[str] = None,
+) -> dict:
+    """
+    Create an activity — a "device" on the remote's home screen.
+
+    Pass entity_ids to build from scratch, or clone_from to copy an existing
+    activity/macro/remote-entity; not both. icon takes "uc:name" or
+    "custom:file.png". The empty page the remote creates alongside it is
+    removed, and the result says if it joined the default activity group, which
+    can make its tile power devices on and off.
+    """
+    return await _create_activity(
+        name=name, icon=icon, description=description, entity_ids=entity_ids,
+        clone_from=clone_from, dry_run=dry_run, host=host,
     )
