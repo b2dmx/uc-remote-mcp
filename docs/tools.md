@@ -52,3 +52,14 @@ All default to `dry_run=True` and take a backup before applying.
 | `answer_integration_setup` | Answer a screen and return the next |
 | `cancel_integration_setup` | Abandon a flow, changing nothing |
 | `restart_remote` | Restart the `ui`, `core`, or whole `system` |
+
+## Activity and macro entities
+
+Exposing an entity from an integration is not enough to use it — the activity or
+macro must also be allowed to use it.
+
+| Tool | Description |
+|------|-------------|
+| `list_scope_entities` | What an activity or macro may currently use |
+| `add_scope_entities` | Allow more; existing entries are preserved |
+| `remove_scope_entities` | Stop using some — also removes their buttons and page items |

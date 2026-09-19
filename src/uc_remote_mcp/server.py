@@ -47,6 +47,11 @@ from .tools.integrations import (
     cancel_integration_setup as _cancel_integration_setup,
     restart_remote as _restart_remote,
 )
+from .tools.inclusion import (
+    list_scope_entities as _list_scope_entities,
+    add_scope_entities as _add_scope_entities,
+    remove_scope_entities as _remove_scope_entities,
+)
 from .tools.restore import (
     diff_config as _diff_config,
     restore_config as _restore_config,
@@ -533,3 +538,52 @@ async def restart_remote(
     repaint; "system" is required after installing a driver.
     """
     return await _restart_remote(target=target, dry_run=dry_run, host=host)
+
+
+# ------------------------------------------------------- activity/macro entities
+
+@mcp.tool()
+async def list_scope_entities(
+    scope_id: str, scope: str = "activity", host: Optional[str] = None
+) -> dict:
+    """
+    Entities an activity or macro is currently allowed to use. scope is
+    "activity" or "macro" — both keep their own list, and a command naming an
+    entity outside it is rejected.
+    """
+    return await _list_scope_entities(scope_id=scope_id, scope=scope, host=host)
+
+
+@mcp.tool()
+async def add_scope_entities(
+    scope_id: str,
+    entity_ids: list[str],
+    scope: str = "activity",
+    dry_run: bool = True,
+    host: Optional[str] = None,
+) -> dict:
+    """
+    Allow an activity or macro to use more entities. Exposing an entity from an
+    integration is not enough on its own — it must also be added here before a
+    button or page item can use it. Existing entries are preserved.
+    """
+    return await _add_scope_entities(
+        scope_id=scope_id, entity_ids=entity_ids, scope=scope, dry_run=dry_run, host=host
+    )
+
+
+@mcp.tool()
+async def remove_scope_entities(
+    scope_id: str,
+    entity_ids: list[str],
+    scope: str = "activity",
+    dry_run: bool = True,
+    host: Optional[str] = None,
+) -> dict:
+    """
+    Stop an activity or macro using entities. Every button mapping and page item
+    referencing them is removed too, so read the preview before applying.
+    """
+    return await _remove_scope_entities(
+        scope_id=scope_id, entity_ids=entity_ids, scope=scope, dry_run=dry_run, host=host
+    )

@@ -31,7 +31,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh    # macOS / Linux
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/b2dmx/uc-remote-mcp@v1.1.0",
+        "git+https://github.com/b2dmx/uc-remote-mcp@v1.2.0",
         "uc-remote-mcp"
       ]
     }
@@ -80,8 +80,8 @@ change any of it: bind buttons, rebuild pages, edit activity sequences, back up
 and restore.
 
 It also manages **integrations**: install a driver, walk through its setup flow
-by answering questions in chat, choose which entities get exposed, and restart
-one when a device stops responding.
+by answering questions in chat, choose which entities get exposed, add them to
+an activity, and restart one when a device stops responding.
 
 **[Full tool list →](docs/tools.md)**
 
