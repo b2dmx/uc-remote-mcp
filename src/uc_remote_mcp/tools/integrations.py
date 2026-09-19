@@ -299,7 +299,8 @@ def _screen(state: dict) -> dict:
                     for o in (spec.get("items") or [])
                 ]
                 or None,
-                "default": spec.get("value"),
+                # Label fields carry their text here as a language dict.
+                "default": localized(spec["value"]) if isinstance(spec.get("value"), dict) else spec.get("value"),
             }
         )
     out = {
@@ -317,6 +318,35 @@ def _screen(state: dict) -> dict:
     return out
 
 
+async def _wait_for_screen(client, driver_id: str, timeout: float = 15.0) -> dict:
+    """Poll the flow until the driver has something to say.
+
+    Creating or answering a step returns before the driver has produced the
+    next screen -- the flow sits in SETUP for a moment first. Reading it once
+    hands back an empty screen and no hint that waiting would have helped.
+    """
+    import asyncio
+
+    deadline = asyncio.get_event_loop().time() + timeout
+    while True:
+        try:
+            state = await client.get(f"/api/intg/setup/{driver_id}")
+        except httpx.HTTPStatusError as err:
+            if err.response.status_code != 404:
+                raise
+            # The flow closes itself when it finishes.
+            return {"state": "OK", "note": "Setup finished; the flow has closed."}
+        if state.get("state") != "SETUP" or asyncio.get_event_loop().time() >= deadline:
+            screen = _screen(state)
+            if state.get("state") == "SETUP":
+                screen["note"] = (
+                    "The driver is still working; call get_integration_setup "
+                    "again in a moment."
+                )
+            return screen
+        await asyncio.sleep(0.5)
+
+
 async def start_integration_setup(
     driver_id: str, reconfigure: bool = False, host: Optional[str] = None
 ) -> dict:
@@ -331,13 +361,18 @@ async def start_integration_setup(
     if reconfigure:
         body["reconfigure"] = True
     await client.post("/api/intg/setup", body)
-    return _screen(await client.get(f"/api/intg/setup/{driver_id}"))
+    return await _wait_for_screen(client, driver_id)
 
 
 async def get_integration_setup(driver_id: str, host: Optional[str] = None) -> dict:
-    """The setup flow's current screen. A 404 means no flow is in progress."""
+    """The setup flow's current screen, or a plain answer if none is running."""
     client = get_client(host)
-    return _screen(await client.get(f"/api/intg/setup/{driver_id}"))
+    try:
+        return _screen(await client.get(f"/api/intg/setup/{driver_id}"))
+    except httpx.HTTPStatusError as err:
+        if err.response.status_code != 404:
+            raise
+        return {"state": "NONE", "note": f"No setup flow is in progress for {driver_id}."}
 
 
 async def answer_integration_setup(
@@ -354,14 +389,7 @@ async def answer_integration_setup(
     await client.put(
         f"/api/intg/setup/{driver_id}", {"input_values": _stringify(values)}
     )
-    try:
-        return _screen(await client.get(f"/api/intg/setup/{driver_id}"))
-    except httpx.HTTPStatusError as err:
-        if err.response.status_code != 404:
-            raise
-        # The flow closes itself when it finishes, so a vanished flow here is
-        # success rather than an error.
-        return {"state": "OK", "note": "Setup finished; the flow has closed."}
+    return await _wait_for_screen(client, driver_id)
 
 
 async def cancel_integration_setup(driver_id: str, host: Optional[str] = None) -> dict:

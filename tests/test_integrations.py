@@ -4,6 +4,8 @@ These are the two bits of real logic in the integrations module that do not
 need a remote. Everything else is a thin call onto the REST client.
 """
 
+import pytest
+
 from uc_remote_mcp.tools.integrations import _screen, _stringify
 
 
@@ -90,6 +92,13 @@ class TestScreen:
         assert [o["id"] for o in out["fields"][0]["options"]] == ["a", "b"]
         assert out["fields"][0]["options"][0]["label"] == "Living room"
 
+    def test_label_field_text_is_localized(self):
+        state = {"state": "WAIT_USER_ACTION", "require_user_action": {"input": {
+            "title": {"en": "Setup"},
+            "settings": [{"id": "info", "label": {"en": "Info"},
+                          "field": {"label": {"value": {"en": "Leave blank.", "de": "Leer lassen."}}}}]}}}
+        assert _screen(state)["fields"][0]["default"] == "Leave blank."
+
     def test_finished_flow_has_no_fields(self):
         assert _screen({"state": "OK"}) == {
             "state": "OK",
@@ -121,3 +130,42 @@ class TestScreen:
 
     def test_survives_a_missing_action_block(self):
         assert _screen({})["fields"] == []
+
+
+class TestWaitForScreen:
+    """The flow sits in SETUP before the driver produces a screen."""
+
+    @pytest.mark.asyncio
+    async def test_polls_past_setup_to_the_first_screen(self):
+        from uc_remote_mcp.tools.integrations import _wait_for_screen
+
+        class Client:
+            calls = 0
+
+            async def get(self, path, **params):
+                Client.calls += 1
+                if Client.calls < 3:
+                    return {"state": "SETUP"}
+                return {
+                    "state": "WAIT_USER_ACTION",
+                    "require_user_action": {
+                        "input": {"title": {"en": "Address"}, "settings": []}
+                    },
+                }
+
+        out = await _wait_for_screen(Client(), "drv", timeout=5)
+        assert out["state"] == "WAIT_USER_ACTION"
+        assert out["title"] == "Address"
+        assert Client.calls == 3
+
+    @pytest.mark.asyncio
+    async def test_gives_up_with_a_hint_rather_than_an_empty_screen(self):
+        from uc_remote_mcp.tools.integrations import _wait_for_screen
+
+        class Client:
+            async def get(self, path, **params):
+                return {"state": "SETUP"}
+
+        out = await _wait_for_screen(Client(), "drv", timeout=0.6)
+        assert out["state"] == "SETUP"
+        assert "get_integration_setup" in out["note"]
