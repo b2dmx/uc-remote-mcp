@@ -1,5 +1,6 @@
 # UC Remote MCP
 
+[![tests](https://github.com/b2dmx/uc-remote-mcp/actions/workflows/tests.yml/badge.svg)](https://github.com/b2dmx/uc-remote-mcp/actions/workflows/tests.yml)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/goobis2dmx)
 
 Control an **Unfolded Circle Remote 3 / Remote Two** by talking to Claude.
@@ -30,7 +31,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh    # macOS / Linux
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/b2dmx/uc-remote-mcp@v0.1.0",
+        "git+https://github.com/b2dmx/uc-remote-mcp@v1.0.0",
         "uc-remote-mcp"
       ]
     }
@@ -43,6 +44,17 @@ section, add the `"uc-remote"` block inside it rather than adding a second one.
 
 **3. Restart the client.** Everything else is fetched and built on first launch,
 which takes a minute — there is nothing to download by hand.
+
+### Updating
+
+Change the version in that config to the release you want, then restart the
+client — for example `@v1.1.0`. Releases are listed on the
+[releases page](https://github.com/b2dmx/uc-remote-mcp/releases); click
+**Watch → Custom → Releases** on the repository to be told about new ones.
+
+To always run the newest code instead, drop `@v1.0.0` entirely. That tracks the
+default branch, which is less predictable — fine for trying things, less so for
+something that edits your remote's configuration.
 
 ## Pair
 
