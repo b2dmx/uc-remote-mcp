@@ -166,3 +166,30 @@ codeset inline, and it wants a `device_name`.
 
 Connect and disconnect are `PUT /api/intg/instances/{id}?cmd=CONNECT` — a query
 parameter, not a body, and the value is rejected unless it is uppercase.
+
+## Updating a custom integration
+
+There is no in-place update. `POST /api/intg/install` answers `422
+ALREADY_EXISTS` for a `driver_id` that is already installed, stopping the driver
+first (`PUT /api/intg/drivers/{id}?cmd=STOP` — only `START` and `STOP` exist)
+does not help, and no `/update` route exists on the driver or anywhere else.
+
+The WebSocket API is no better: `update_integration_driver` and
+`update_integration` exist there but only edit driver and instance *metadata*,
+and there is no message that accepts driver bytes at all. Create and delete, no
+replace, on either protocol. The remote's own Integration Manager shows an
+update button and fails with the same 422, because it calls the same endpoint.
+
+So `update_integration_driver` here deletes and reinstalls. Two things make that
+much less alarming than it sounds, both confirmed on a Sony AVR and an LG TV:
+
+* Entity ids are derived from the device rather than the install, so they come
+  back identical and every button, page item and macro step resolves again by
+  itself. Across both swaps, 69 references survived and none had to be rebuilt.
+  Count them before and after instead of restoring blindly.
+* The *pairing* does not survive. Someone has to confirm a prompt on the device,
+  so this is not a thing to start remotely.
+
+The package is read out of the `.tar.gz` and checked against the installed
+`driver_id` first, because the delete happens before the install and a
+mismatched file would otherwise leave the remote with neither driver.

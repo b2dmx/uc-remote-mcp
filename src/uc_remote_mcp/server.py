@@ -50,6 +50,7 @@ from .tools.integrations import (
     confirm_integration_setup as _confirm_integration_setup,
     delete_integration_instance as _delete_integration_instance,
     restart_remote as _restart_remote,
+    update_integration_driver as _update_integration_driver,
     set_integration_connected as _set_integration_connected,
     discover_integrations as _discover_integrations,
 )
@@ -1355,3 +1356,31 @@ async def discover_integrations(host: Optional[str] = None) -> dict:
     from the remote's own screen, so an empty list usually means it is off.
     """
     return await _discover_integrations(host=host)
+
+
+@mcp.tool()
+async def update_integration_driver(
+    driver_id: str,
+    file_path: str,
+    dry_run: bool = True,
+    host: Optional[str] = None,
+) -> dict:
+    """
+    Update a custom integration to a new version from a .tar.gz.
+
+    The remote has no in-place update — install refuses a driver_id it already
+    has, and the WebSocket API has no message that takes driver bytes — so this
+    deletes and reinstalls, which is what the remote's own Integration Manager
+    fails to do. The package is checked against the installed driver first, so a
+    mismatched file is refused before anything is deleted.
+
+    Afterwards you must run start_integration_setup and then
+    configure_integration_entities. Expect to confirm pairing on the device
+    itself, so do not start this when nobody can reach it. Entity ids normally
+    regenerate identically, so buttons, page items and macros survive — the
+    result reports what referenced the driver beforehand so you can check rather
+    than rebuild.
+    """
+    return await _update_integration_driver(
+        driver_id=driver_id, file_path=file_path, dry_run=dry_run, host=host
+    )

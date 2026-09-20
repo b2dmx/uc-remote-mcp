@@ -48,6 +48,7 @@ All default to `dry_run=True` and take a backup before applying.
 | `restart_integration` | Disable and re-enable an instance — the usual fix when devices stop responding |
 | `set_integration_enabled` | Enable or disable an instance |
 | `install_integration` | Install a custom driver from a `.tar.gz` |
+| `update_integration_driver` | Update a custom driver to a new `.tar.gz` — deletes and reinstalls, since the remote has no in-place update |
 | `delete_integration` | Remove a driver, its instance and all its entities |
 | `delete_integration_instance` | Remove one instance, keeping the driver — the teardown for firmware-shipped drivers |
 | `start_integration_setup` | Begin setup and return the first screen |

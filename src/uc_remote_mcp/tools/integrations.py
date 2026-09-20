@@ -18,6 +18,8 @@ the pain is undocumented behaviour rather than difficulty:
 Each of those is a dead end someone would otherwise have to discover.
 """
 
+import asyncio
+import json
 from typing import Any, Optional
 
 import httpx
@@ -723,3 +725,151 @@ async def discover_integrations(host: Optional[str] = None) -> dict:
         "discovery_active": found.get("active"),
         "integrations": found.get("integrations") or [],
     }
+
+
+def _package_driver_json(file_path: str) -> dict:
+    """Read driver.json out of an integration .tar.gz without unpacking it."""
+    import json as _json
+    import tarfile
+
+    with tarfile.open(file_path, "r:gz") as tar:
+        for name in ("./driver.json", "driver.json"):
+            try:
+                fh = tar.extractfile(name)
+            except KeyError:
+                continue
+            if fh:
+                return _json.loads(fh.read().decode("utf-8"))
+        member = next(
+            (m for m in tar.getmembers() if m.name.endswith("driver.json")), None
+        )
+        if member:
+            fh = tar.extractfile(member)
+            if fh:
+                return _json.loads(fh.read().decode("utf-8"))
+    raise ValueError(f"No driver.json inside {file_path} -- is it an integration package?")
+
+
+async def update_integration_driver(
+    driver_id: str,
+    file_path: str,
+    dry_run: bool = True,
+    host: Optional[str] = None,
+) -> dict:
+    """
+    Update a custom integration to a new version from a ``.tar.gz``.
+
+    The remote cannot replace a driver in place. ``POST /api/intg/install``
+    answers 422 ALREADY_EXISTS for a driver_id it already has, stopping the
+    driver first does not help, and the WebSocket API has no message that takes
+    driver bytes either -- its ``update_integration_driver`` only edits
+    metadata. The remote's own Integration Manager fails the same way, because
+    it calls the same endpoint. So this deletes the driver and installs the new
+    package, which is the only path there is.
+
+    **This is not a quiet operation.** Deleting the driver removes its entities,
+    and setup has to be run again afterwards. Two things make it far less
+    alarming than it sounds, both worth knowing before you panic:
+
+    * Entity ids are derived from the device, not from the install, so they come
+      back identical and every button, page item and macro step that referenced
+      them resolves again on its own. Count the references before and after
+      rather than rebuilding them -- they are very likely untouched.
+    * The *pairing* usually does not survive. Expect to confirm a prompt on the
+      device itself, so do not start this when nobody can reach it.
+
+    The package is checked against the installed driver first: a ``.tar.gz``
+    for a different driver_id is refused before anything is deleted.
+
+    Afterwards: ``start_integration_setup``, answer its screens, then
+    ``configure_integration_entities`` to add the entities back.
+    """
+    client = get_client(host)
+
+    current = await client.get(f"/api/intg/drivers/{driver_id}")
+    package = _package_driver_json(file_path)
+    pkg_id = package.get("driver_id")
+    if pkg_id != driver_id:
+        raise ValueError(
+            f"That package is for '{pkg_id}', not '{driver_id}'. Nothing was "
+            "changed -- installing it would have deleted one driver and "
+            "installed a different one."
+        )
+
+    # Counted before and after, so a caller can tell at a glance whether the
+    # references really did survive.
+    refs: dict[str, Any] = {}
+    for activity in await client.get_list("/api/activities"):
+        detail = await client.get(f"/api/activities/{activity['entity_id']}")
+        opts = detail.get("options") or {}
+        blob = json.dumps(opts)
+        if driver_id in blob:
+            refs[localized(detail.get("name")) or activity["entity_id"]] = {
+                "entities": sum(
+                    1
+                    for e in (opts.get("included_entities") or [])
+                    if str(e.get("entity_id", "")).startswith(driver_id)
+                ),
+                "buttons": sum(
+                    1
+                    for b in (opts.get("button_mapping") or [])
+                    if driver_id in json.dumps(b)
+                ),
+                "page_items": sum(
+                    1
+                    for p in ((opts.get("user_interface") or {}).get("pages") or [])
+                    for i in (p.get("items") or [])
+                    if driver_id in json.dumps(i)
+                ),
+            }
+
+    old_version = current.get("version")
+    new_version = package.get("version")
+
+    async def _swap() -> dict:
+        await client.delete(f"/api/intg/drivers/{driver_id}", timeout=120)
+        await asyncio.sleep(6)
+        try:
+            await client.post_file("/api/intg/install", file_path)
+        except httpx.HTTPStatusError as err:
+            # Install answers 422 after succeeding often enough to check rather
+            # than trust the status code.
+            if err.response.status_code != 422:
+                raise
+        await asyncio.sleep(10)
+
+        installed = await client.get(f"/api/intg/drivers/{driver_id}")
+        return {
+            "driver_id": driver_id,
+            "version": installed.get("version"),
+            "driver_state": installed.get("driver_state"),
+            "references_before": refs,
+            "next_steps": [
+                f"start_integration_setup('{driver_id}') and answer its screens "
+                "-- you will probably have to confirm pairing on the device",
+                f"configure_integration_entities to add the entities back",
+                "then compare references_before against what is there now",
+            ],
+        }
+
+    return await apply_mutation(
+        client,
+        action="update_integration_driver",
+        summary=f"update {localized(current.get('name')) or driver_id} "
+        f"{old_version} -> {new_version} (delete and reinstall)",
+        change={
+            "driver_id": driver_id,
+            "from": old_version,
+            "to": new_version,
+            "references_at_risk": refs,
+        },
+        do_write=_swap,
+        dry_run=dry_run,
+        warnings=[
+            "The driver is deleted and reinstalled; there is no in-place update.",
+            "Setup must be run again afterwards, and pairing usually has to be "
+            "confirmed on the device itself.",
+            "Entity ids normally regenerate identically, so references survive -- "
+            "check before rebuilding anything.",
+        ],
+    )

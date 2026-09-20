@@ -251,3 +251,55 @@ class TestWaitForScreen:
         ready = _flow_screen("Please choose your Sony AVR", "choice")
         got = await _wait_for_screen(FakeFlowClient([busy, busy, ready]), "drv", timeout=5)
         assert got["title"] == "Please choose your Sony AVR"
+
+
+class TestPackageDriverJson:
+    """The package is read before the installed driver is deleted.
+
+    Getting this wrong is expensive: the update path deletes first, so a
+    mismatched package would leave the remote with neither driver.
+    """
+
+    @staticmethod
+    def _package(tmp_path, driver_id="lgwebos_driver", version="1.17.1", prefix="./"):
+        import io as _io
+        import json as _json
+        import tarfile
+
+        path = tmp_path / "pkg.tar.gz"
+        blob = _json.dumps({"driver_id": driver_id, "version": version}).encode()
+        with tarfile.open(path, "w:gz") as tar:
+            info = tarfile.TarInfo(f"{prefix}driver.json")
+            info.size = len(blob)
+            tar.addfile(info, _io.BytesIO(blob))
+        return str(path)
+
+    def test_reads_driver_json_from_the_archive(self, tmp_path):
+        from uc_remote_mcp.tools.integrations import _package_driver_json
+
+        got = _package_driver_json(self._package(tmp_path))
+        assert got["driver_id"] == "lgwebos_driver"
+        assert got["version"] == "1.17.1"
+
+    def test_reads_it_without_the_dot_slash_prefix(self, tmp_path):
+        from uc_remote_mcp.tools.integrations import _package_driver_json
+
+        got = _package_driver_json(self._package(tmp_path, prefix=""))
+        assert got["driver_id"] == "lgwebos_driver"
+
+    def test_finds_it_when_nested_in_a_folder(self, tmp_path):
+        from uc_remote_mcp.tools.integrations import _package_driver_json
+
+        got = _package_driver_json(self._package(tmp_path, prefix="uc-intg-lgtv/"))
+        assert got["driver_id"] == "lgwebos_driver"
+
+    def test_an_archive_without_one_is_rejected(self, tmp_path):
+        import tarfile
+
+        from uc_remote_mcp.tools.integrations import _package_driver_json
+
+        path = tmp_path / "empty.tar.gz"
+        with tarfile.open(path, "w:gz"):
+            pass
+        with pytest.raises(ValueError, match="No driver.json"):
+            _package_driver_json(str(path))
