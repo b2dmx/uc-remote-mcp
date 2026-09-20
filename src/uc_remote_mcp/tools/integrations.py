@@ -472,12 +472,32 @@ def _screen(state: dict) -> dict:
     return out
 
 
-async def _wait_for_screen(client, driver_id: str, timeout: float = 15.0) -> dict:
-    """Poll the flow until the driver has something to say.
+def _fingerprint(screen: dict) -> tuple:
+    """What makes one setup screen distinguishable from the next."""
+    return (
+        screen.get("state"),
+        screen.get("title"),
+        tuple(f.get("id") for f in (screen.get("fields") or [])),
+    )
 
-    Creating or answering a step returns before the driver has produced the
-    next screen -- the flow sits in SETUP for a moment first. Reading it once
-    hands back an empty screen and no hint that waiting would have helped.
+
+async def _wait_for_screen(
+    client, driver_id: str, timeout: float = 15.0, previous: Optional[tuple] = None
+) -> dict:
+    """Poll the flow until the driver has something new to say.
+
+    Two separate waits are needed here, and only one of them is obvious.
+
+    The flow sits in SETUP for a moment while the driver works, and reading it
+    then hands back an empty screen. That much is easy to wait out.
+
+    The other: answering a step returns immediately, and for a moment the flow
+    is back in WAIT_USER_ACTION still showing the screen just answered. A wait
+    that only watches for "no longer SETUP" is satisfied by that instantly and
+    returns the old screen -- so a caller driving the flow by this return value
+    answers the same question forever. ``previous`` is the fingerprint of the
+    screen that was just answered; when given, the poll continues until the
+    screen actually differs from it.
     """
     import asyncio
 
@@ -490,12 +510,24 @@ async def _wait_for_screen(client, driver_id: str, timeout: float = 15.0) -> dic
                 raise
             # The flow closes itself when it finishes.
             return {"state": "OK", "note": "Setup finished; the flow has closed."}
-        if state.get("state") != "SETUP" or asyncio.get_event_loop().time() >= deadline:
-            screen = _screen(state)
-            if state.get("state") == "SETUP":
+
+        screen = _screen(state)
+        busy = state.get("state") == "SETUP"
+        stale = previous is not None and _fingerprint(screen) == previous
+        timed_out = asyncio.get_event_loop().time() >= deadline
+
+        if not busy and not stale:
+            return screen
+        if timed_out:
+            if busy:
                 screen["note"] = (
                     "The driver is still working; call get_integration_setup "
                     "again in a moment."
+                )
+            elif stale:
+                screen["note"] = (
+                    "The driver has not moved on from this screen. It may have "
+                    "rejected the answer -- check 'error'."
                 )
             return screen
         await asyncio.sleep(0.5)
@@ -563,10 +595,11 @@ async def answer_integration_setup(
     flow -- it has to be started again from the beginning.
     """
     client = get_client(host)
+    before = _fingerprint(await get_integration_setup(driver_id, host=host))
     await client.put(
         f"/api/intg/setup/{driver_id}", {"input_values": _stringify(values)}, timeout=90
     )
-    return await _wait_for_screen(client, driver_id)
+    return await _wait_for_screen(client, driver_id, previous=before)
 
 
 async def confirm_integration_setup(
@@ -581,8 +614,9 @@ async def confirm_integration_setup(
     offers one.
     """
     client = get_client(host)
+    before = _fingerprint(await get_integration_setup(driver_id, host=host))
     await client.put(f"/api/intg/setup/{driver_id}", {"confirm": confirm}, timeout=90)
-    return await _wait_for_screen(client, driver_id)
+    return await _wait_for_screen(client, driver_id, previous=before)
 
 
 async def cancel_integration_setup(driver_id: str, host: Optional[str] = None) -> dict:
@@ -630,3 +664,62 @@ async def restart_remote(
         do_write=lambda: client.post(f"/api/system?cmd={cmd}"),
         dry_run=dry_run,
     )
+
+
+async def set_integration_connected(
+    integration_id: str,
+    connected: bool,
+    dry_run: bool = True,
+    host: Optional[str] = None,
+) -> dict:
+    """
+    Connect or disconnect an integration instance without disabling it.
+
+    Lighter than restart_integration: the instance stays enabled and keeps its
+    configuration, it just drops or re-opens its connection to the device. Try
+    this first when devices stop responding; restart the integration if it does
+    not help.
+
+    The command is a query parameter and the API only accepts it uppercase.
+    """
+    client = get_client(host)
+    instances = await client.get_list("/api/intg/instances")
+    match = next(
+        (i for i in instances if i.get("integration_id") == integration_id), None
+    )
+    if match is None:
+        have = ", ".join(i.get("integration_id", "?") for i in instances)
+        raise ValueError(f"No integration '{integration_id}'. Have: {have}")
+
+    cmd = "CONNECT" if connected else "DISCONNECT"
+    return await apply_mutation(
+        client,
+        action="set_integration_connected",
+        summary=f"{cmd.lower()} '{localized(match.get('name')) or integration_id}' "
+        f"(now {match.get('device_state')})",
+        change={
+            "integration_id": integration_id,
+            "from": match.get("device_state"),
+            "cmd": cmd,
+        },
+        do_write=lambda: client.put(
+            f"/api/intg/instances/{integration_id}?cmd={cmd}", None, timeout=45
+        ),
+        dry_run=dry_run,
+    )
+
+
+async def discover_integrations(host: Optional[str] = None) -> dict:
+    """
+    Integrations the remote can see on the network but has not set up.
+
+    Discovery is a mode the remote enters from its own integration screen, so an
+    empty list with ``discovery_active`` false means nothing is looking rather
+    than nothing is there.
+    """
+    client = get_client(host)
+    found = await client.get("/api/intg/discover")
+    return {
+        "discovery_active": found.get("active"),
+        "integrations": found.get("integrations") or [],
+    }

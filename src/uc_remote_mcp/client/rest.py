@@ -65,6 +65,14 @@ class UCClient:
                 UCClient._raise(r)
                 return self._body(r)
 
+    async def get_bytes(self, path: str, timeout: float = 120) -> bytes:
+        """Fetch a file rather than JSON -- device snapshots download this way."""
+        url = self._base + path
+        async with httpx.AsyncClient(timeout=timeout) as c:
+            r = await c.get(url, headers=self._headers)
+            self._raise(r)
+            return r.content
+
     async def get_text(self, path: str) -> str:
         url = self._base + path
         async with httpx.AsyncClient(timeout=10) as c:
@@ -132,6 +140,20 @@ class UCClient:
         url = self._base + path
         async with httpx.AsyncClient(timeout=timeout) as c:
             r = await c.patch(url, headers=self._headers, json=body)
+            UCClient._raise(r)
+            return self._body(r)
+
+    async def request_with_body(
+        self, method: str, path: str, body: Any = None, timeout: float = 30
+    ) -> Any:
+        """Any verb, with a body.
+
+        DELETE /entities takes its entity list in the body, which httpx's
+        delete() will not send -- it has to go through request().
+        """
+        url = self._base + path
+        async with httpx.AsyncClient(timeout=timeout) as c:
+            r = await c.request(method, url, headers=self._headers, json=body)
             UCClient._raise(r)
             return self._body(r)
 

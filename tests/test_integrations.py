@@ -169,3 +169,85 @@ class TestWaitForScreen:
         out = await _wait_for_screen(Client(), "drv", timeout=0.6)
         assert out["state"] == "SETUP"
         assert "get_integration_setup" in out["note"]
+
+
+def _flow_screen(title: str, field_id: str, state: str = "WAIT_USER_ACTION") -> dict:
+    """A setup-flow response as the remote sends it."""
+    return {
+        "state": state,
+        "require_user_action": {
+            "input": {
+                "title": {"en": title},
+                "settings": [
+                    {"id": field_id, "label": {"en": field_id},
+                     "field": {"text": {"value": ""}}}
+                ],
+            }
+        },
+    }
+
+
+class FakeFlowClient:
+    """Serves a scripted sequence of setup-flow screens."""
+
+    def __init__(self, screens):
+        self._screens = list(screens)
+        self.gets = 0
+
+    async def get(self, path):  # noqa: D102 - test double
+        self.gets += 1
+        # Hold on the last screen once the script runs out.
+        return self._screens[min(self.gets - 1, len(self._screens) - 1)]
+
+
+class TestWaitForScreen:
+    """The flow briefly re-serves the screen that was just answered.
+
+    Answering returns immediately and the flow goes back to WAIT_USER_ACTION
+    still showing the old question. Returning that screen makes a caller answer
+    the same step forever, which is how a real Sony setup appeared to hang.
+    """
+
+    @pytest.mark.asyncio
+    async def test_waits_until_the_screen_actually_changes(self):
+        from uc_remote_mcp.tools.integrations import _fingerprint, _wait_for_screen
+
+        old = _flow_screen("Configuration mode", "configuration_mode")
+        new = _flow_screen("Setup mode", "address")
+        client = FakeFlowClient([old, old, new])
+
+        got = await _wait_for_screen(
+            client, "drv", timeout=5, previous=_fingerprint(_screen(old))
+        )
+
+        assert got["title"] == "Setup mode"
+        assert [f["id"] for f in got["fields"]] == ["address"]
+
+    @pytest.mark.asyncio
+    async def test_without_a_previous_screen_the_first_one_is_returned(self):
+        from uc_remote_mcp.tools.integrations import _wait_for_screen
+
+        first = _flow_screen("Configuration mode", "configuration_mode")
+        got = await _wait_for_screen(FakeFlowClient([first]), "drv", timeout=5)
+        assert got["title"] == "Configuration mode"
+
+    @pytest.mark.asyncio
+    async def test_a_screen_that_never_changes_says_so_rather_than_hanging(self):
+        from uc_remote_mcp.tools.integrations import _fingerprint, _wait_for_screen
+
+        stuck = _flow_screen("Configuration mode", "configuration_mode")
+        got = await _wait_for_screen(
+            FakeFlowClient([stuck]), "drv", timeout=1,
+            previous=_fingerprint(_screen(stuck)),
+        )
+        assert got["title"] == "Configuration mode"
+        assert "not moved on" in got["note"]
+
+    @pytest.mark.asyncio
+    async def test_waits_out_the_busy_state(self):
+        from uc_remote_mcp.tools.integrations import _wait_for_screen
+
+        busy = {"state": "SETUP"}
+        ready = _flow_screen("Please choose your Sony AVR", "choice")
+        got = await _wait_for_screen(FakeFlowClient([busy, busy, ready]), "drv", timeout=5)
+        assert got["title"] == "Please choose your Sony AVR"

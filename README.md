@@ -37,7 +37,7 @@ create it if it isn't there:
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/b2dmx/uc-remote-mcp@v1.0.1",
+        "git+https://github.com/b2dmx/uc-remote-mcp@v1.0.0",
         "uc-remote-mcp"
       ]
     }
