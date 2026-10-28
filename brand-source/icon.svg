@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" fill="none" stroke="#000" stroke-linecap="round" stroke-linejoin="round">
+  <!-- remote body -->
+  <rect x="320" y="80" width="360" height="840" rx="180" stroke-width="72"/>
+  <!-- d-pad ring -->
+  <circle cx="500" cy="300" r="100" stroke-width="64"/>
+  <circle cx="500" cy="300" r="34" fill="#6103FF" stroke="none"/>
+  <!-- buttons -->
+  <path d="M430 500 H570" stroke-width="56"/>
+  <path d="M430 600 H570" stroke-width="56"/>
+  <circle cx="440" cy="730" r="34" fill="#000" stroke="none"/>
+  <circle cx="560" cy="730" r="34" fill="#000" stroke="none"/>
+  <!-- conversation spark -->
+  <path d="M820 120 Q832 208 900 220 Q832 232 820 320 Q808 232 740 220 Q808 208 820 120Z" fill="#6103FF" stroke="#6103FF" stroke-width="16"/>
+</svg>
