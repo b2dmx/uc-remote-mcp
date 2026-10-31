@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="brand/dark_icon@2x.png">
-    <img src="brand/icon@2x.png" width="140" alt="UC Remote MCP logo">
+    <source media="(prefers-color-scheme: dark)" srcset="brand/dark_logo@2x.png">
+    <img src="brand/logo@2x.png" width="420" alt="Unfolded Circle MCP logo">
   </picture>
 </p>
 
