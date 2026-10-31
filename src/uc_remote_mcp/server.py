@@ -124,7 +124,7 @@ from .tools.restore import (
 )
 
 mcp = fastmcp.FastMCP(
-    name="UC Remote MCP",
+    name="Unfolded Circle MCP",
     instructions=(
         "Tools for reading and configuring Unfolded Circle Remote 3 / Remote Two. "
         "Start with setup_remote (first run only), then use discover_remotes or get_remote_info."

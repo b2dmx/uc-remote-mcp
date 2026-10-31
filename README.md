@@ -5,9 +5,11 @@
   </picture>
 </p>
 
-<h1 align="center">UC Remote MCP</h1>
+<h1 align="center">Unfolded Circle MCP</h1>
 
 <p align="center"><b>Set up and control your Unfolded Circle remote by just asking.</b></p>
+
+<p align="center"><sub>An unofficial community project. Not affiliated with or endorsed by Unfolded Circle.</sub></p>
 
 <p align="center">
   <a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-Server-6103FF" alt="MCP Server"></a>
@@ -75,6 +77,6 @@ Tool design informed by [ha-mcp](https://pypi.org/project/ha-mcp/). API referenc
 
 <p align="center">
   <a href="LICENSE">MIT</a> · <a href="https://ko-fi.com/goobis2dmx">Support on Ko-fi</a> · Not affiliated with Unfolded Circle<br><br>
-  UC Remote MCP v1.0.0 by Goobis<br>
+  Unfolded Circle MCP v1.0.0 by Goobis<br>
   AI was used to help develop this application
 </p>
