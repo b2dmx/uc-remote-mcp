@@ -69,6 +69,10 @@ An MCP server for the **Remote 3 / Remote Two**. Works with Claude and any other
 
 Tool design informed by [ha-mcp](https://pypi.org/project/ha-mcp/). API reference from the [Unfolded Circle Core API](https://github.com/unfoldedcircle/core-api).
 
+## License
+
+The code is [MIT](LICENSE). The Unfolded Circle MCP logo and icons (`brand-source/`, `brand/`, and the logo images in `docs/`) are © Goobis, all rights reserved. They are not covered by the MIT license, so please don't reuse them without permission.
+
 ---
 
 <p align="center">
